@@ -7,7 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-eklmeeqb&id(wpf3*v$4km)9298ve#gd7%5b+fg@^&mb2l)4mm')
 DEBUG = os.getenv('RENDER') != 'true'
-ALLOWED_HOSTS = ['document-tracker.onrender.com', '127.0.0.1']
+ALLOWED_HOSTS = ['document-tracker-3cxv.onrender.com', '127.0.0.1']
 
 # Installed apps
 INSTALLED_APPS = [
@@ -18,7 +18,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'documents',
-    'django-widget-tweaks',
+    'widget_tweaks',
 ]
 
 # Middleware
