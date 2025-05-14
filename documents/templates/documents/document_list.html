@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+{% block title %}Document List{% endblock %}
+{% block content %}
+
+<h2 class="text-center mb-3">📄 Document Tracker</h2>
+
+<!-- 🔹 Dashboard Cards and Priority Chart -->
+<div class="row text-center justify-content-center mb-3">
+  <div class="col-md-2">
+    <div class="card">
+      <div class="card-body py-2">
+        <h6 class="mb-1">Total</h6>
+        <h4 class="mb-0">{{ total_docs }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card bg-warning">
+      <div class="card-body py-2 text-dark">
+        <h6 class="mb-1">Pending</h6>
+        <h4 class="mb-0">{{ pending_docs }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card bg-primary">
+      <div class="card-body py-2 text-white">
+        <h6 class="mb-1">Followed Up</h6>
+        <h4 class="mb-0">{{ followed_docs }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card bg-success">
+      <div class="card-body py-2 text-white">
+        <h6 class="mb-1">Resolved</h6>
+        <h4 class="mb-0">{{ resolved_docs }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body py-2">
+        <h6 class="mb-1">📊 Priority Distribution</h6>
+        <div style="height: 120px;">
+          <canvas id="priorityChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 🔄 Side-by-side Layout -->
+<div class="row">
+  <div class="col-lg-8">
+    <!-- 🔹 Filters -->
+    <form method="get" class="row g-1 mb-2 align-items-center">
+      <div class="col-md-2 pe-1">
+        <select name="status" class="form-select form-select-sm">
+          <option value="">Status</option>
+          <option value="Pending" {% if request.GET.status == 'Pending' %}selected{% endif %}>Pending</option>
+          <option value="Followed Up" {% if request.GET.status == 'Followed Up' %}selected{% endif %}>Followed Up</option>
+          <option value="Resolved" {% if request.GET.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+        </select>
+      </div>
+      <div class="col-md-2 pe-1">
+        <select name="division" class="form-select form-select-sm">
+          <option value="">Division</option>
+          {% for div in divisions %}
+            <option value="{{ div }}" {% if request.GET.division == div %}selected{% endif %}>{{ div }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 pe-1">
+        <input type="date" name="start_date" class="form-control form-control-sm" placeholder="Start Date" value="{{ request.GET.start_date }}">
+      </div>
+      <div class="col-md-2 pe-1">
+        <input type="date" name="end_date" class="form-control form-control-sm" placeholder="End Date" value="{{ request.GET.end_date }}">
+      </div>
+      <div class="col-md-3 pe-1">
+        <input type="text" name="q" placeholder="Search..." class="form-control form-control-sm" value="{{ request.GET.q }}">
+      </div>
+      <div class="col-md-1">
+        <button type="submit" class="btn btn-sm btn-outline-primary w-100">🔍</button>
+      </div>
+    </form>
+
+    <!-- 🔹 Table -->
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover table-striped text-center align-middle table-sm">
+        <thead class="table-dark">
+          <tr>
+            <th>Title</th>
+            <th>Purpose</th>
+            <th>Doc Date</th>
+            <th>Follow-Up</th>
+            <th>Receiver</th>
+            <th>Division</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Overdue</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for doc in documents %}
+          <tr>
+            <td>{{ doc.title }}</td>
+            <td>{{ doc.purpose }}</td>
+            <td>{{ doc.doc_date }}</td>
+            <td>{{ doc.follow_up }}</td>
+            <td>{{ doc.receiver }}</td>
+            <td>{{ doc.division }}</td>
+            <td>
+              <form method="post" action="{% url 'document_edit' doc.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="quick_status" value="1">
+                <select name="status" class="form-select form-select-sm 
+                    {% if doc.status == 'Pending' %}bg-warning text-dark
+                    {% elif doc.status == 'Followed Up' %}bg-primary text-white
+                    {% elif doc.status == 'Resolved' %}bg-success text-white{% endif %}" onchange="this.form.submit()">
+                  <option value="Pending" {% if doc.status == 'Pending' %}selected{% endif %}>Pending</option>
+                  <option value="Followed Up" {% if doc.status == 'Followed Up' %}selected{% endif %}>Followed Up</option>
+                  <option value="Resolved" {% if doc.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+                </select>
+              </form>
+            </td>
+            <td>
+              {% with doc.get_priority as priority %}
+                {% if priority == 'High' %}
+                  <span class="badge bg-danger">High</span>
+                {% elif priority == 'Moderate' %}
+                  <span class="badge bg-warning text-dark">Moderate</span>
+                {% elif priority == 'Low' %}
+                  <span class="badge bg-success">Low</span>
+                {% elif priority == 'Treated' %}
+                  <span class="badge bg-info text-white">Treated</span>
+                {% else %}
+                  <span class="badge bg-secondary">Unknown</span>
+                {% endif %}
+              {% endwith %}
+            </td>
+            <td>{% if doc.is_overdue %}<span class="text-danger fw-bold">⚠️</span>{% endif %}</td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                <a href="{% url 'document_edit' doc.pk %}" class="btn btn-info">✏️</a>
+                <a href="{% url 'document_delete' doc.pk %}" class="btn btn-danger">🗑️</a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="text-muted">No documents found.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 🔹 Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="d-flex justify-content-center">
+      <ul class="pagination pagination-sm">
+        {% if page_obj.has_previous %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+          <li class="page-item {% if num == page_obj.number %}active{% endif %}">
+            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+          </li>
+        {% endfor %}
+        {% if page_obj.has_next %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+
+  <!-- 🔹 Division Bar Chart -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body py-2">
+        <h6 class="text-center mb-1">📈 Division Overview</h6>
+        <div style="height: 280px;">
+          <canvas id="divisionBarChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Priority Pie Chart
+  const priorityCtx = document.getElementById('priorityChart').getContext('2d');
+  new Chart(priorityCtx, {
+    type: 'pie',
+    data: {
+      labels: ['High', 'Moderate', 'Low'],
+      datasets: [{
+        data: [
+          {{ priority_counts.High|default:0 }},
+          {{ priority_counts.Moderate|default:0 }},
+          {{ priority_counts.Low|default:0 }}
+        ],
+        backgroundColor: ['Crimson', '#FFC107', 'Teal']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: 1
+      },
+      plugins: {
+        legend: { 
+          position: 'bottom',
+          labels: {
+            boxWidth:35,
+            font: {
+              size: 15
+            }
+          }
+        },
+        datalabels: {
+          color: 'white',
+          font: { 
+            weight: 'bold',
+            size: 10
+          },
+          formatter: function(value, context) {
+            const data = context.chart.data.datasets[0].data;
+            const total = data.reduce((a, b) => a + b, 0);
+            const percent = total ? ((value / total) * 100).toFixed(1) : 0;
+            return percent + '%';
+          }
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+
+  // Division Bar Chart
+  const divisionCtx = document.getElementById('divisionBarChart').getContext('2d');
+  new Chart(divisionCtx, {
+    type: 'bar',
+    data: {
+      labels: [{% for d in division_counts %}'{{ d.division }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+      datasets: [{
+        label: 'Documents',
+        data: [{% for d in division_counts %}{{ d.count }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+        backgroundColor: '#0d6efd',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { 
+          beginAtZero: true,
+          ticks: {
+            precision: 0
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

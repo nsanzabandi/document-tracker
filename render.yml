@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: document-tracker
+    runtime: python
+    buildCommand: "./manage.py collectstatic --noinput"
+    startCommand: "gunicorn document_tracker.wsgi:application"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: document_tracker.settings
+      - key: SECRET_KEY
+        generateValue: true
+      - key: RENDER
+        value: true
