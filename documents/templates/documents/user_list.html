@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<h3>👥 User Management</h3>
+<table class="table table-bordered mt-3 align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Division</th>
+            <th>Active</th>
+            <th>Role</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.username }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.profile.division }}</td>
+            <td>{{ user.is_active }}</td>
+            <td>
+                <form method="post" action="{% url 'update_user_role' user.id %}">
+                    {% csrf_token %}
+                    <select name="role" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="regular" {% if not user.is_superuser %}selected{% endif %}>Regular</option>
+                        <option value="admin" {% if user.is_superuser %}selected{% endif %}>Admin</option>
+                    </select>
+                </form>
+            </td>
+            <td>
+                <a href="{% url 'user_edit' user.id %}" class="btn btn-sm btn-info">Edit</a>
+                <a href="{% url 'user_delete' user.id %}" class="btn btn-sm btn-danger">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -4,7 +4,7 @@
 
 <h2 class="text-center mb-3">📄 Document Tracker</h2>
 
-<!-- 🔹 Dashboard Cards and Priority Chart -->
+<!-- 🔹 Dashboard Cards and Status Chart -->
 <div class="row text-center justify-content-center mb-3">
   <div class="col-md-2">
     <div class="card">
@@ -41,9 +41,9 @@
   <div class="col-md-3">
     <div class="card">
       <div class="card-body py-2">
-        <h6 class="mb-1">📊 Priority Distribution</h6>
+        <h6 class="mb-1">📊 Status Distribution</h6>
         <div style="height: 120px;">
-          <canvas id="priorityChart"></canvas>
+          <canvas id="statusChart"></canvas>
         </div>
       </div>
     </div>
@@ -63,6 +63,7 @@
           <option value="Resolved" {% if request.GET.status == 'Resolved' %}selected{% endif %}>Resolved</option>
         </select>
       </div>
+      {% if request.user.is_superuser %}
       <div class="col-md-2 pe-1">
         <select name="division" class="form-select form-select-sm">
           <option value="">Division</option>
@@ -71,6 +72,7 @@
           {% endfor %}
         </select>
       </div>
+      {% endif %}
       <div class="col-md-2 pe-1">
         <input type="date" name="start_date" class="form-control form-control-sm" placeholder="Start Date" value="{{ request.GET.start_date }}">
       </div>
@@ -96,9 +98,16 @@
             <th>Follow-Up</th>
             <th>Receiver</th>
             <th>Division</th>
+            {% if request.user.is_superuser %}
+              <th>Created By</th>
+            {% endif %}
             <th>Status</th>
-            <th>Priority</th>
-            <th>Overdue</th>
+            <th>
+              Overdue
+              <span data-bs-toggle="tooltip" title="Indicates documents that are past the follow-up date without resolution.">
+                <i class="fas fa-info-circle text-light"></i>
+              </span>
+            </th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -111,6 +120,9 @@
             <td>{{ doc.follow_up }}</td>
             <td>{{ doc.receiver }}</td>
             <td>{{ doc.division }}</td>
+            {% if request.user.is_superuser %}
+              <td>{{ doc.created_by.username }}</td>
+            {% endif %}
             <td>
               <form method="post" action="{% url 'document_edit' doc.id %}">
                 {% csrf_token %}
@@ -126,21 +138,10 @@
               </form>
             </td>
             <td>
-              {% with doc.get_priority as priority %}
-                {% if priority == 'High' %}
-                  <span class="badge bg-danger">High</span>
-                {% elif priority == 'Moderate' %}
-                  <span class="badge bg-warning text-dark">Moderate</span>
-                {% elif priority == 'Low' %}
-                  <span class="badge bg-success">Low</span>
-                {% elif priority == 'Treated' %}
-                  <span class="badge bg-info text-white">Treated</span>
-                {% else %}
-                  <span class="badge bg-secondary">Unknown</span>
-                {% endif %}
-              {% endwith %}
+              {% if doc.is_overdue %}
+              <span class="text-danger fw-bold" data-bs-toggle="tooltip" title="This document is overdue.">⚠️</span>
+              {% endif %}
             </td>
-            <td>{% if doc.is_overdue %}<span class="text-danger fw-bold">⚠️</span>{% endif %}</td>
             <td>
               <div class="btn-group btn-group-sm" role="group">
                 <a href="{% url 'document_edit' doc.pk %}" class="btn btn-info">✏️</a>
@@ -149,7 +150,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" class="text-muted">No documents found.</td></tr>
+          <tr><td colspan="10" class="text-muted">No documents found.</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -192,56 +193,72 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Priority Pie Chart
-  const priorityCtx = document.getElementById('priorityChart').getContext('2d');
-  new Chart(priorityCtx, {
-    type: 'pie',
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+
+  const statusCtx = document.getElementById('statusChart').getContext('2d');
+  const statusData = {
+    "Pending": {{ status_counts.Pending|default:0 }},
+    "Followed Up": {{ status_counts.Followed_Up|default:0 }},
+    "Resolved": {{ status_counts.Resolved|default:0 }},
+    "Overdue": {{ status_counts.Overdue|default:0 }}
+  };
+
+  const statusLabels = Object.keys(statusData);
+  const statusValues = Object.values(statusData);
+  const statusTotal = statusValues.reduce((a, b) => a + b, 0);
+
+  new Chart(statusCtx, {
+    type: 'doughnut',
     data: {
-      labels: ['High', 'Moderate', 'Low'],
+      labels: statusLabels,
       datasets: [{
-        data: [
-          {{ priority_counts.High|default:0 }},
-          {{ priority_counts.Moderate|default:0 }},
-          {{ priority_counts.Low|default:0 }}
-        ],
-        backgroundColor: ['Crimson', '#FFC107', 'Teal']
+        data: statusValues,
+        backgroundColor: ['#FFC107', '#0d6efd', '#198754', '#dc3545'],
+        borderWidth: 1
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      layout: {
-        padding: 1
-      },
+      cutout: '60%',
+      layout: { padding: 5 },
       plugins: {
-        legend: { 
+        legend: {
           position: 'bottom',
           labels: {
-            boxWidth:35,
-            font: {
-              size: 15
+            boxWidth: 30,
+            font: { size: 16 },
+            generateLabels: function(chart) {
+              return chart.data.labels.map((label, i) => {
+                const value = chart.data.datasets[0].data[i];
+                const percent = statusTotal ? ((value / statusTotal) * 100).toFixed(1) + '%' : '0%';
+                return {
+                  text: `${label}: ${percent}`,
+                  fillStyle: chart.data.datasets[0].backgroundColor[i],
+                  strokeStyle: '#fff',
+                  lineWidth: 1,
+                  index: i
+                };
+              });
             }
           }
         },
-        datalabels: {
-          color: 'white',
-          font: { 
-            weight: 'bold',
-            size: 10
-          },
-          formatter: function(value, context) {
-            const data = context.chart.data.datasets[0].data;
-            const total = data.reduce((a, b) => a + b, 0);
-            const percent = total ? ((value / total) * 100).toFixed(1) : 0;
-            return percent + '%';
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const value = context.parsed;
+              const percent = statusTotal ? ((value / statusTotal) * 100).toFixed(1) : 0;
+              return `${context.label}: ${value} (${percent}%)`;
+            }
           }
         }
       }
-    },
-    plugins: [ChartDataLabels]
+    }
   });
 
-  // Division Bar Chart
   const divisionCtx = document.getElementById('divisionBarChart').getContext('2d');
   new Chart(divisionCtx, {
     type: 'bar',
@@ -258,12 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        y: { 
-          beginAtZero: true,
-          ticks: {
-            precision: 0
-          }
-        }
+        y: { beginAtZero: true, ticks: { precision: 0 } }
       },
       plugins: {
         legend: { display: false }
@@ -272,4 +284,5 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+
 {% endblock %}

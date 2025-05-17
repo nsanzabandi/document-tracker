@@ -21,6 +21,8 @@
                                 <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
                                 {% if field.name == "purpose" %}
                                     {{ field|add_class:"form-control"|attr:"rows:3" }}
+                                {% elif field.name == "receiver" or field.name == "division" %}
+                                    {{ field|add_class:"form-select select2" }}
                                 {% else %}
                                     {{ field|add_class:"form-control" }}
                                 {% endif %}
@@ -74,4 +76,24 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_head %}
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- jQuery + Select2 JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    $('.select2').select2({
+      width: '100%',
+      placeholder: "Search...",
+      allowClear: true
+    });
+  });
+</script>
 {% endblock %}
