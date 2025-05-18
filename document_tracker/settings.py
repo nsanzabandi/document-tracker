@@ -59,10 +59,15 @@ TEMPLATES = [
 # Database (SQLite for local/dev/Render)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
 }
+
 
 # Password validators
 AUTH_PASSWORD_VALIDATORS = [
@@ -91,7 +96,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-key')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST = 'mail.rbc.gov.rw'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
@@ -100,3 +105,6 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Default primary key type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+LOGIN_URL = '/login/'      
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/login/'
