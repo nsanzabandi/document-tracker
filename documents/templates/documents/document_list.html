@@ -68,7 +68,7 @@
         <select name="division" class="form-select form-select-sm">
           <option value="">Division</option>
           {% for div in divisions %}
-            <option value="{{ div }}" {% if request.GET.division == div %}selected{% endif %}>{{ div }}</option>
+            <option value="{{ div.id }}" {% if request.GET.division == div.id|stringformat:"s" %}selected{% endif %}>{{ div.name }}</option>
           {% endfor %}
         </select>
       </div>
@@ -118,24 +118,40 @@
             <td>{{ doc.purpose }}</td>
             <td>{{ doc.doc_date }}</td>
             <td>{{ doc.follow_up }}</td>
-            <td>{{ doc.receiver }}</td>
+            <td>
+              {{ doc.receiver }}
+              {% comment %}<!-- Show if current user is the receiver -->{% endcomment %}
+              {% if doc.receiver.user == request.user %}
+                <small class="text-muted">(You)</small>
+              {% endif %}
+            </td>
             <td>{{ doc.division }}</td>
             {% if request.user.is_superuser %}
               <td>{{ doc.created_by.username }}</td>
             {% endif %}
             <td>
-              <form method="post" action="{% url 'document_edit' doc.id %}">
-                {% csrf_token %}
-                <input type="hidden" name="quick_status" value="1">
-                <select name="status" class="form-select form-select-sm 
+              {% comment %}<!-- Status change form - available to all users with access -->{% endcomment %}
+              {% if doc.can_change_status %}
+                <form method="post" action="{% url 'document_change_status' doc.id %}">
+                  {% csrf_token %}
+                  <select name="status" class="form-select form-select-sm 
+                      {% if doc.status == 'Pending' %}bg-warning text-dark
+                      {% elif doc.status == 'Followed Up' %}bg-primary text-white
+                      {% elif doc.status == 'Resolved' %}bg-success text-white{% endif %}" onchange="this.form.submit()">
+                    <option value="Pending" {% if doc.status == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option value="Followed Up" {% if doc.status == 'Followed Up' %}selected{% endif %}>Followed Up</option>
+                    <option value="Resolved" {% if doc.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+                  </select>
+                </form>
+              {% else %}
+                {% comment %}<!-- Read-only status display -->{% endcomment %}
+                <span class="badge 
                     {% if doc.status == 'Pending' %}bg-warning text-dark
-                    {% elif doc.status == 'Followed Up' %}bg-primary text-white
-                    {% elif doc.status == 'Resolved' %}bg-success text-white{% endif %}" onchange="this.form.submit()">
-                  <option value="Pending" {% if doc.status == 'Pending' %}selected{% endif %}>Pending</option>
-                  <option value="Followed Up" {% if doc.status == 'Followed Up' %}selected{% endif %}>Followed Up</option>
-                  <option value="Resolved" {% if doc.status == 'Resolved' %}selected{% endif %}>Resolved</option>
-                </select>
-              </form>
+                    {% elif doc.status == 'Followed Up' %}bg-primary
+                    {% elif doc.status == 'Resolved' %}bg-success{% endif %}">
+                  {{ doc.status }}
+                </span>
+              {% endif %}
             </td>
             <td>
               {% if doc.is_overdue %}
@@ -144,13 +160,25 @@
             </td>
             <td>
               <div class="btn-group btn-group-sm" role="group">
-                <a href="{% url 'document_edit' doc.pk %}" class="btn btn-info">✏️</a>
-                <a href="{% url 'document_delete' doc.pk %}" class="btn btn-danger">🗑️</a>
+                {% comment %}<!-- Edit button - only for creators and superusers -->{% endcomment %}
+                {% if doc.can_edit %}
+                  <a href="{% url 'document_edit' doc.pk %}" class="btn btn-info">✏️</a>
+                {% endif %}
+                
+                {% comment %}<!-- Delete button - only for creators and superusers -->{% endcomment %}
+                {% if doc.can_delete %}
+                  <a href="{% url 'document_delete' doc.pk %}" class="btn btn-danger">🗑️</a>
+                {% endif %}
+                
+                {% comment %}<!-- Show role indicator for clarity -->{% endcomment %}
+                {% if not doc.can_edit and not doc.can_delete %}
+                  <small class="text-muted">Receiver</small>
+                {% endif %}
               </div>
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="10" class="text-muted">No documents found.</td></tr>
+          <tr><td colspan="{% if request.user.is_superuser %}11{% else %}10{% endif %}" class="text-muted">No documents found.</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -263,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
   new Chart(divisionCtx, {
     type: 'bar',
     data: {
-      labels: [{% for d in division_counts %}'{{ d.division }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+      labels: [{% for d in division_counts %}'{{ d.division__name }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
       datasets: [{
         label: 'Documents',
         data: [{% for d in division_counts %}{{ d.count }}{% if not forloop.last %}, {% endif %}{% endfor %}],

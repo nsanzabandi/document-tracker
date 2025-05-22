@@ -19,9 +19,7 @@ class Document(models.Model):
     division = models.ForeignKey('Division', on_delete=models.CASCADE)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     created_at = models.DateTimeField(auto_now_add=True)
-
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='documents')
-  # ✅ NEW
 
     def is_overdue(self):
         from datetime import date
@@ -51,12 +49,19 @@ class Division(models.Model):
     def __str__(self):
         return self.name
 
+
 class Staff(models.Model):
     name = models.CharField(max_length=100)
     division = models.ForeignKey(Division, on_delete=models.CASCADE, related_name='staff_members')
+    # NEW: Link to User account (optional)
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='staff_profile')
 
     def __str__(self):
         return self.name
+
+    class Meta:
+        ordering = ['name']
+
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
